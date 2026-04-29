@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Agent Content Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#06060c;--bg-elevated:#0c0d14;--surface:#111219;--surface-hover:#181924;
+  --border:#1e2030;--border-active:#2a2d45;
+  --accent:#f0a500;--accent-dim:#f0a50033;--accent-glow:#f0a50066;
+  --cyan:#00d4aa;--cyan-dim:#00d4aa22;
+  --coral:#ff4757;--coral-dim:#ff475722;
+  --violet:#8b5cf6;--violet-dim:#8b5cf622;
+  --blue:#3b82f6;--blue-dim:#3b82f622;
+  --text:#e8e6e1;--text-secondary:#8a8790;--text-muted:#55536a;
+  --font-display:'Syne','Noto Sans SC',sans-serif;
+  --font-mono:'JetBrains Mono','Noto Sans SC',monospace;
+  --font-body:'Noto Sans SC','JetBrains Mono',sans-serif;
+  --radius:8px;--radius-lg:14px;
+}
+html{font-size:14px;-webkit-font-smoothing:antialiased}
+body{
+  background:var(--bg);color:var(--text);font-family:var(--font-body);
+  min-height:100vh;overflow-x:hidden;position:relative;
+}
+body::before{
+  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse at 15% 10%,rgba(240,165,0,.04) 0%,transparent 50%),
+             radial-gradient(ellipse at 85% 80%,rgba(0,212,170,.03) 0%,transparent 50%);
+}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:9px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+.app{position:relative;z-index:1;display:grid;grid-template-rows:auto 1fr;height:100vh;padding:16px;gap:14px}
+.header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+}
+.header-left{display:flex;align-items:center;gap:14px}
+.logo{
+  width:36px;height:36px;border-radius:10px;
+  background:linear-gradient(135deg,var(--accent),#ff6b00);
+  display:grid;place-items:center;font-family:var(--font-display);
+  font-weight:800;font-size:16px;color:var(--bg);
+}
+.header-title{font-family:var(--font-display);font-weight:700;font-size:1.15rem;letter-spacing:-.02em}
+.header-subtitle{font-size:.75rem;color:var(--text-muted);font-family:var(--font-mono);margin-top:2px}
+.header-right{display:flex;align-items:center;gap:10px}
+.header-stat{
+  display:flex;align-items:center;gap:6px;padding:6px 12px;
+  background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:.75rem;
+}
+.header-stat .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-active{background:var(--cyan);box-shadow:0 0 8px var(--cyan)}
+.dot-idle{background:var(--text-muted)}
+.dot-busy{background:var(--accent);box-shadow:0 0 8px var(--accent);animation:pulse-dot 1.5s infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 16px;
+  border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);
+  color:var(--text);font-family:var(--font-mono);font-size:.78rem;cursor:pointer;
+  transition:all .2s ease;white-space:nowrap;
+}
+.btn:hover{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.btn-primary{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600;}
+.btn-primary:hover{background:#ffb820;box-shadow:0 0 20px var(--accent-glow)}
+.main-grid{
+  display:grid;grid-template-columns:1fr 1fr 340px;grid-template-rows:auto 1fr;
+  gap:14px;min-height:0;
+}
+.agents-row{grid-column:1/-1;display:flex;gap:10px;overflow-x:auto;padding-bottom:2px}
+.agent-card{
+  flex:1;min-width:180px;padding:14px 16px;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  cursor:pointer;transition:all .25s ease;position:relative;overflow:hidden;
+}
+.agent-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--agent-color,var(--border));opacity:.6;transition:opacity .25s;
+}
+.agent-card:hover{border-color:var(--border-active);transform:translateY(-2px)}
+.agent-card:hover::before{opacity:1}
+.agent-card.active{border-color:var(--agent-color,var(--accent))}
+.agent-card.active::before{opacity:1;height:3px}
+.agent-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.agent-icon{
+  width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
+  font-size:14px;background:var(--agent-bg,var(--bg-elevated));
+}
+.agent-name{font-family:var(--font-display);font-weight:600;font-size:.85rem}
+.agent-status-badge{
+  font-family:var(--font-mono);font-size:.6rem;padding:2px 7px;
+  border-radius:20px;border:1px solid;text-transform:uppercase;letter-spacing:.05em;
+}
+.badge-idle{color:var(--text-muted);border-color:var(--text-muted)}
+.badge-working{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
+.badge-reviewing{color:var(--violet);border-color:var(--violet);background:var(--violet-dim)}
+.badge-completed{color:var(--cyan);border-color:var(--cyan);background:var(--cyan-dim)}
+.agent-metrics{display:flex;gap:12px;margin-top:8px}
+.agent-metric{font-family:var(--font-mono);font-size:.65rem;color:var(--text-secondary)}
+.agent-metric span{color:var(--text);font-weight:500}
+.agent-bar{height:3px;background:var(--bg-elevated);border-radius:9px;margin-top:10px;overflow:hidden}
+.agent-bar-fill{height:100%;border-radius:9px;transition:width .6s ease;width:0}
+.pipeline-panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:16px;display:flex;flex-direction:column;min-height:0;overflow:hidden;
+}
+.panel-title{
+  font-family:var(--font-display);font-weight:700;font-size:.9rem;
+  margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;
+}
+.panel-title .count{font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);font-weight:400;}
+.pipeline-stages{display:flex;gap:6px;margin-bottom:14px}
+.stage-tab{
+  flex:1;padding:7px 4px;text-align:center;font-family:var(--font-mono);font-size:.65rem;
+  color:var(--text-muted);border:1px solid var(--border);border-radius:var(--radius);
+  cursor:pointer;transition:all .2s;position:relative;
+}
+.stage-tab.active{color:var(--accent);border-color:var(--accent);background:var(--accent-dim)}
+.stage-tab .stage-count{display:block;font-size:.9rem;font-weight:600;color:var(--text);margin-bottom:2px;}
+.content-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.content-item{
+  padding:12px 14px;background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:var(--radius);cursor:pointer;transition:all .2s;
+  border-left:3px solid transparent;
+}
+.content-item:hover{border-color:var(--border-active);background:var(--surface-hover)}
+.content-item.selected{border-left-color:var(--accent);background:var(--accent-dim)}
+.content-item-title{font-weight:500;font-size:.82rem;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.content-item-meta{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:.65rem;color:var(--text-muted)}
+.content-item-tag{padding:1px 6px;border-radius:4px;font-size:.6rem;}
+.log-panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:16px;display:flex;flex-direction:column;min-height:0;overflow:hidden;
+}
+.log-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.log-entry{
+  display:flex;gap:10px;padding:6px 8px;border-radius:6px;
+  font-family:var(--font-mono);font-size:.72rem;line-height:1.5;
+  transition:background .15s;animation:logIn .3s ease;
+}
+@keyframes logIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.log-entry:hover{background:var(--surface-hover)}
+.log-time{color:var(--text-muted);flex-shrink:0;width:52px}
+.log-agent{flex-shrink:0;width:70px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.log-msg{color:var(--text-secondary);flex:1;word-break:break-all}
+.log-msg strong{color:var(--text);font-weight:500}
+.detail-panel{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:16px;display:flex;flex-direction:column;min-height:0;overflow:hidden;grid-row:2;
+}
+.detail-empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:var(--text-muted);font-family:var(--font-mono);font-size:.78rem;gap:8px;
+}
+.detail-empty svg{opacity:.3}
+.detail-content{flex:1;overflow-y:auto}
+.detail-header{margin-bottom:14px}
+.detail-title{font-family:var(--font-display);font-weight:700;font-size:1.05rem;margin-bottom:6px}
+.detail-badge{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
+  border-radius:20px;font-family:var(--font-mono);font-size:.65rem;
+}
+.detail-section{margin-bottom:14px}
+.detail-section-title{
+  font-family:var(--font-mono);font-size:.65rem;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;
+}
+.detail-body{
+  font-size:.82rem;line-height:1.7;color:var(--text-secondary);
+  padding:12px;background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:var(--radius);max-height:200px;overflow-y:auto;
+}
+.detail-timeline{display:flex;flex-direction:column;gap:0}
+.timeline-item{display:flex;gap:10px;padding:8px 0;position:relative;}
+.timeline-dot{
+  width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px;
+  border:2px solid var(--border);background:var(--bg);position:relative;z-index:1;
+}
+.timeline-item.done .timeline-dot{border-color:var(--cyan);background:var(--cyan)}
+.timeline-item.active .timeline-dot{border-color:var(--accent);background:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
+.timeline-item.pending .timeline-dot{border-color:var(--text-muted)}
+.timeline-line{position:absolute;left:4px;top:14px;bottom:-6px;width:2px;background:var(--border);}
+.timeline-item:last-child .timeline-line{display:none}
+.timeline-info{flex:1}
+.timeline-label{font-size:.78rem;font-weight:500}
+.timeline-time{font-family:var(--font-mono);font-size:.65rem;color:var(--text-muted);margin-top:2px}
+.stats-row{grid-column:1/3;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.stat-card{
+  padding:14px 16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-lg);position:relative;overflow:hidden;
+}
+.stat-card::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:40%;
+  background:linear-gradient(to top,var(--stat-glow,transparent),transparent);opacity:.15;
+}
+.stat-label{font-family:var(--font-mono);font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em}
+.stat-value{font-family:var(--font-display);font-size:1.6rem;font-weight:800;margin-top:4px;position:relative;z-index:1}
+.stat-change{font-family:var(--font-mono);font-size:.65rem;margin-top:4px}
+.stat-change.up{color:var(--cyan)}
+.stat-change.down{color:var(--coral)}
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);
+  z-index:1000;display:none;align-items:center;justify-content:center;animation:fadeIn .2s ease;
+}
+.modal-overlay.show{display:flex}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);
+  width:520px;max-width:90vw;max-height:80vh;overflow-y:auto;padding:24px;animation:slideUp .3s ease;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.modal-title{font-family:var(--font-display);font-weight:700;font-size:1.1rem;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.form-input,.form-select,.form-textarea{
+  width:100%;padding:10px 12px;background:var(--bg-elevated);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--text);font-family:var(--font-body);font-size:.85rem;
+  transition:border-color .2s;outline:none;
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent)}
+.form-textarea{resize:vertical;min-height:80px}
+.form-select{cursor:pointer}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.toast-container{position:fixed;top:20px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+.toast{
+  padding:12px 16px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);font-family:var(--font-mono);font-size:.78rem;
+  display:flex;align-items:center;gap:8px;animation:toastIn .3s ease;
+  box-shadow:0 8px 30px rgba(0,0,0,.3);min-width:260px;
+}
+@keyframes toastIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
+.toast.success{border-left:3px solid var(--cyan)}
+.toast.info{border-left:3px solid var(--blue)}
+.toast.warning{border-left:3px solid var(--accent)}
+.toast.error{border-left:3px solid var(--coral)}
+@media(max-width:1100px){
+  .main-grid{grid-template-columns:1fr 300px;grid-template-rows:auto auto 1fr}
+  .agents-row{grid-column:1/-1}
+  .stats-row{grid-column:1/-1}
+  .detail-panel{grid-row:auto;grid-column:2}
+}
+@media(max-width:768px){
+  .main-grid{grid-template-columns:1fr;grid-template-rows:auto auto auto auto}
+  .detail-panel{grid-column:1}
+  .agents-row{flex-wrap:nowrap}
+  .stats-row{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="header-left">
+      <div class="logo">M</div>
+      <div>
+        <div class="header-title">Multi-Agent Content Ops</div>
+        <div class="header-subtitle">agent-orchestrator v2.4.0 — 多智能体内容运营引擎</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="header-stat"><span class="dot dot-active"></span> <span id="activeAgentCount">6</span> Agents Online</div>
+      <div class="header-stat"><span class="dot dot-busy"></span> <span id="queueCount">0</span> In Queue</div>
+      <button class="btn" onclick="showNewWorkflow()">+ 新建工作流</button>
+      <button class="btn btn-primary" onclick="runDemoWorkflow()">▶ 运行演示</button>
+    </div>
+  </header>
+  <div class="main-grid">
+    <div class="agents-row" id="agentsRow"></div>
+    <div class="pipeline-panel">
+      <div class="panel-title">内容流水线 <span class="count" id="pipelineCount">0 items</span></div>
+      <div class="pipeline-stages" id="pipelineStages"></div>
+      <div class="content-list" id="contentList"></div>
+    </div>
+    <div class="log-panel">
+      <div class="panel-title">Agent 通信日志 <span class="count" id="logCount">0 messages</span></div>
+      <div class="log-list" id="logList"></div>
+    </div>
+    <div class="detail-panel" id="detailPanel">
+      <div class="panel-title">内容详情</div>
+      <div class="detail-empty" id="detailEmpty">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+        <span>选择内容项查看详情</span>
+      </div>
+      <div class="detail-content" id="detailContent" style="display:none"></div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card" style="--stat-glow:var(--accent)">
+        <div class="stat-label">今日产出</div>
+        <div class="stat-value" id="statProduced">0</div>
+        <div class="stat-change up" id="statProducedChange">↑ +0 vs 昨日</div>
+      </div>
+      <div class="stat-card" style="--stat-glow:var(--cyan)">
+        <div class="stat-label">审核通过率</div>
+        <div class="stat-value" id="statPassRate">—</div>
+        <div class="stat-change up">目标 ≥ 85%</div>
+      </div>
+      <div class="stat-card" style="--stat-glow:var(--violet)">
+        <div class="stat-label">平均处理时长</div>
+        <div class="stat-value" id="statAvgTime">—</div>
+        <div class="stat-change">per content item</div>
+      </div>
+      <div class="stat-card" style="--stat-glow:var(--blue)">
+        <div class="stat-label">Agent 协作次数</div>
+        <div class="stat-value" id="statCollabs">0</div>
+        <div class="stat-change up">跨Agent消息</div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-title">创建内容工作流</div>
+    <div class="form-group">
+      <label class="form-label">内容主题</label>
+      <input class="form-input" id="inputTopic" placeholder="例：2025 AI行业趋势分析" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">内容类型</label>
+      <select class="form-select" id="inputType">
+        <option value="article">深度文章</option>
+        <option value="social">社媒短文</option>
+        <option value="newsletter">Newsletter</option>
+        <option value="video_script">视频脚本</option>
+        <option value="whitepaper">白皮书</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">目标平台</label>
+      <select class="form-select" id="inputPlatform">
+        <option value="wechat">微信公众号</option>
+        <option value="zhihu">知乎</option>
+        <option value="weibo">微博</option>
+        <option value="douyin">抖音</option>
+        <option value="all">全平台</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">关键词（逗号分隔）</label>
+      <input class="form-input" id="inputKeywords" placeholder="AI, 自动化, 内容运营" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">附加说明</label>
+      <textarea class="form-textarea" id="inputNotes" placeholder="对内容的特殊要求..."></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="submitWorkflow()">创建工作流</button>
+    </div>
+  </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+<script>
+class EventBus {
+  constructor() { this.listeners = {} }
+  on(event, fn) {
+    (this.listeners[event] = this.listeners[event] || []).push(fn);
+    return () => this.off(event, fn);
+  }
+  off(event, fn) {
+    this.listeners[event] = (this.listeners[event] || []).filter(f => f !== fn);
+  }
+  emit(event, data) {
+    (this.listeners[event] || []).forEach(fn => fn(data));
+  }
+}
+const bus = new EventBus();
+let nextId = 1;
+const uid = () => `id-${nextId++}`;
+const STAGES = ['planning', 'writing', 'seo', 'review', 'publishing', 'published'];
+const STAGE_LABELS = { planning:'策划中', writing:'撰写中', seo:'SEO优化', review:'审核中', publishing:'发布中', published:'已发布' };
+const STAGE_COLORS = { planning:'var(--blue)', writing:'var(--accent)', seo:'var(--violet)', review:'var(--coral)', publishing:'var(--cyan)', published:'var(--cyan)' };
+const TYPE_LABELS = { article:'深度文章', social:'社媒短文', newsletter:'Newsletter', video_script:'视频脚本', whitepaper:'白皮书' };
+const PLATFORM_LABELS = { wechat:'微信公众号', zhihu:'知乎', weibo:'微博', douyin:'抖音', all:'全平台' };
+class ContentItem {
+  constructor({ topic, type, platform, keywords, notes }) {
+    this.id = uid(); this.topic = topic; this.type = type; this.platform = platform;
+    this.keywords = keywords; this.notes = notes; this.stage = 'planning';
+    this.createdAt = Date.now(); this.timeline = [{ stage: 'created', time: Date.now(), agent: 'System' }];
+    this.content = ''; this.seoScore = 0; this.reviewScore = 0; this.reviewComments = []; this.metadata = {};
+  }
+  advance(nextStage, agentName) {
+    this.stage = nextStage;
+    this.timeline.push({ stage: nextStage, time: Date.now(), agent: agentName });
+  }
+}
+class Agent {
+  constructor(name, role, color, icon) {
+    this.name = name; this.role = role; this.color = color; this.icon = icon;
+    this.status = 'idle'; this.tasksCompleted = 0; this.currentTask = null;
+    this.progress = 0; this.messagesSent = 0; this.messagesReceived = 0;
+  }
+  async process(item) { throw new Error('Implement in subclass'); }
+  setStatus(status) { this.status = status; bus.emit('agent:status', { name: this.name, status }); }
+  log(msg) { bus.emit('log', { agent: this.name, message: msg, time: Date.now() }); }
+  sendMessage(to, msg) {
+    this.messagesSent++;
+    bus.emit('agent:message', { from: this.name, to, message: msg });
+    this.log(`→ [${to}] ${msg}`);
+  }
+  delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+}
+class PlannerAgent extends Agent {
+  constructor() { super('Planner', '内容策划', '#3b82f6', '📋'); }
+  async process(item) {
+    this.setStatus('working'); this.currentTask = item.id;
+    this.log(`开始分析主题: "${item.topic}"`); await this.delay(800);
+    this.progress = 30; bus.emit('agent:progress', { name: this.name, progress: 30 });
+    const outlines = {
+      article: ['引言与背景','核心观点分析','数据与案例支撑','行业影响评估','未来展望','总结'],
+      social: ['开头痛点','核心观点','行动号召'],
+      newsletter: ['本周热点','深度解读','工具推荐','读者互动'],
+      video_script: ['开场Hook','问题引入','解决方案','案例展示','结尾CTA'],
+      whitepaper: ['执行摘要','市场分析','技术架构','实施路径','ROI分析','附录']
+    };
+    item.metadata.outline = outlines[item.type] || outlines.article;
+    item.metadata.targetAudience = '互联网从业者、产品经理、技术决策者';
+    item.metadata.tone = '专业、有洞察力、数据驱动';
+    this.log(`生成大纲: ${item.metadata.outline.length} 个章节`);
+    this.sendMessage('Writer', `大纲已生成，请为 "${item.topic}" 撰写内容`);
+    await this.delay(600); this.progress = 100;
+    bus.emit('agent:progress', { name: this.name, progress: 100 });
+    item.advance('writing', this.name); this.tasksCompleted++;
+    this.setStatus('completed'); this.currentTask = null; this.progress = 0; return item;
+  }
+}
+class WriterAgent extends Agent {
+  constructor() { super('Writer', '内容创作', '#f0a500', '✍️'); }
+  async process(item) {
+    this.setStatus('working'); this.currentTask = item.id;
+    this.log(`开始撰写: "${item.topic}" [${TYPE_LABELS[item.type]}]`);
+    const sections = item.metadata.outline || ['正文']; let content = '';
+    for (let i = 0; i < sections.length; i++) {
+      await this.delay(500);
+      this.progress = Math.round(((i + 1) / sections.length) * 80);
+      bus.emit('agent:progress', { name: this.name, progress: this.progress });
+      const paragraphs = [
+        `${sections[i]}：在当前数字化转型的背景下，${item.topic}正成为行业关注的焦点。`,
+        `根据最新数据显示，相关领域的市场规模预计将在未来三年内增长超过200%。`,
+        `通过深入分析可以发现，技术创新与用户需求的双重驱动正在重塑整个行业格局。`,
+        `值得关注的是，领先企业已经开始布局相关战略，以抢占市场先机。`
+      ];
+      content += `\n\n## ${sections[i]}\n\n${paragraphs[i % paragraphs.length]}`;
+      this.log(`完成章节 [${i+1}/${sections.length}]: ${sections[i]}`);
+    }
+    item.content = content.trim();
+    item.metadata.wordCount = item.content.length;
+    item.metadata.readingTime = Math.ceil(item.content.length / 500);
+    await this.delay(400); this.progress = 100;
+    bus.emit('agent:progress', { name: this.name, progress: 100 });
+    this.log(`撰写完成: ${item.metadata.wordCount} 字, 预计阅读 ${item.metadata.readingTime} 分钟`);
+    this.sendMessage('SEO', `内容初稿完成，请对 "${item.topic}" 进行SEO优化`);
+    item.advance('seo', this.name); this.tasksCompleted++;
+    this.setStatus('completed'); this.currentTask = null; this.progress = 0; return item;
+  }
+}
+class SEOAgent extends Agent {
+  constructor() { super('SEO', '搜索优化', '#8b5cf6', '🔍'); }
+  async process(item) {
+    this.setStatus('working'); this.currentTask = item.id;
+    this.log(`开始SEO分析: "${item.topic}"`); await this.delay(600);
+    this.progress = 25; bus.emit('agent:progress', { name: this.name, progress: 25 });
+    const keywords = item.keywords || ['AI','自动化'];
+    item.metadata.seo = {
+      titleScore: Math.floor(Math.random()*20+80),
+      keywordDensity: (Math.random()*2+1.5).toFixed(1)+'%',
+      readabilityScore: Math.floor(Math.random()*15+75),
+      metaDescription: `${item.topic} - 深度解析行业趋势与实践策略`,
+      internalLinks: Math.floor(Math.random()*4+2),
+      suggestedTags: [...keywords,'数字化转型','行业洞察']
+    };
+    await this.delay(500); this.progress = 60;
+    bus.emit('agent:progress', { name: this.name, progress: 60 });
+    this.log(`关键词密度: ${item.metadata.seo.keywordDensity}, 可读性评分: ${item.metadata.seo.readabilityScore}`);
+    item.content = `> ${item.metadata.seo.metaDescription}\n\n` + item.content;
+    item.seoScore = item.metadata.seo.titleScore;
+    await this.delay(400); this.progress = 100;
+    bus.emit('agent:progress', { name: this.name, progress: 100 });
+    this.log(`SEO优化完成, 综合评分: ${item.seoScore}/100`);
+    this.sendMessage('Reviewer', `SEO优化完成, 请审核 "${item.topic}"`);
+    item.advance('review', this.name); this.tasksCompleted++;
+    this.setStatus('completed'); this.currentTask = null; this.progress = 0; return item;
+  }
+}
+class ReviewAgent extends Agent {
+  constructor() { super('Reviewer', '质量审核', '#ff4757', '🔎'); }
+  async process(item) {
+    this.setStatus('reviewing'); this.currentTask = item.id;
+    this.log(`开始审核: "${item.topic}"`); await this.delay(700);
+    this.progress = 40; bus.emit('agent:progress', { name: this.name, progress: 40 });
+    const scores = {
+      accuracy: Math.floor(Math.random()*15+80),
+      originality: Math.floor(Math.random()*20+75),
+      engagement: Math.floor(Math.random()*15+80),
+      brandAlignment: Math.floor(Math.random()*10+85),
+    };
+    item.reviewScore = Math.round(Object.values(scores).reduce((a,b)=>a+b,0)/4);
+    item.reviewComments = [];
+    if (scores.accuracy < 85) item.reviewComments.push('建议补充更多数据来源引用');
+    if (scores.engagement < 85) item.reviewComments.push('开头可增加更具吸引力的Hook');
+    await this.delay(500); this.progress = 100;
+    bus.emit('agent:progress', { name: this.name, progress: 100 });
+    if (item.reviewScore >= 75) {
+      this.log(`审核通过 ✅ 综合评分: ${item.reviewScore}/100`);
+      this.sendMessage('Publisher', `"${item.topic}" 审核通过, 可以发布`);
+      item.advance('publishing', this.name);
+    } else {
+      this.log(`审核未通过 ❌ 评分: ${item.reviewScore}/100, 需要修改`);
+      item.reviewComments.push('请根据审核意见修改后重新提交');
+    }
+    this.tasksCompleted++; this.setStatus('completed');
+    this.currentTask = null; this.progress = 0; return item;
+  }
+}
+class PublisherAgent extends Agent {
+  constructor() { super('Publisher', '内容发布', '#00d4aa', '🚀'); }
+  async process(item) {
+    this.setStatus('working'); this.currentTask = item.id;
+    this.log(`准备发布到 ${PLATFORM_LABELS[item.platform]}: "${item.topic}"`);
+    await this.delay(500); this.progress = 30;
+    bus.emit('agent:progress', { name: this.name, progress: 30 });
+    item.metadata.publishedAt = Date.now();
+    item.metadata.platformUrl = `https://${item.platform}.example.com/${item.id}`;
+    item.metadata.status = 'live';
+    await this.delay(600); this.progress = 80;
+    bus.emit('agent:progress', { name: this.name, progress: 80 });
+    this.log(`内容已推送到 ${PLATFORM_LABELS[item.platform]}`);
+    this.sendMessage('Analytics', `"${item.topic}" 已发布, 开始追踪数据`);
+    await this.delay(300); this.progress = 100;
+    bus.emit('agent:progress', { name: this.name, progress: 100 });
+    item.advance('published', this.name); this.tasksCompleted++;
+    this.setStatus('completed'); this.currentTask = null; this.progress = 0; return item;
+  }
+}
+class AnalyticsAgent extends Agent {
+  constructor() { super('Analytics', '数据分析', '#06b6d4', '📊'); }
+  async process(item) {
+    this.setStatus('working'); this.currentTask = item.id;
+    this.log(`开始追踪: "${item.topic}" 的表现数据`); await this.delay(400);
+    item.metadata.analytics = {
+      impressions: Math.floor(Math.random()*50000+10000),
+      clicks: Math.floor(Math.random()*5000+1000),
+      shares: Math.floor(Math.random()*500+50),
+      avgReadTime: (Math.random()*3+1).toFixed(1)+'min',
+    };
+    const a = item.metadata.analytics;
+    this.log(`初始数据: 曝光 ${a.impressions}, 点击 ${a.clicks}, 分享 ${a.shares}`);
+    this.progress = 100; bus.emit('agent:progress', { name: this.name, progress: 100 });
+    this.tasksCompleted++; this.setStatus('completed');
+    this.currentTask = null; this.progress = 0; return item;
+  }
+}
+class Orchestrator {
+  constructor() {
+    this.agents = {
+      planner: new PlannerAgent(), writer: new WriterAgent(), seo: new SEOAgent(),
+      reviewer: new ReviewAgent(), publisher: new PublisherAgent(), analytics: new AnalyticsAgent(),
+    };
+    this.contentItems = new Map(); this.queue = []; this.isRunning = false;
+    this.stats = { produced: 0, passed: 0, totalReviewed: 0, totalCollabs: 0, totalTime: 0 };
+  }
+  async startWorkflow(params) {
+    const item = new ContentItem(params);
+    this.contentItems.set(item.id, item); this.queue.push(item);
+    this.updateUI(); showToast(`工作流已创建: "${item.topic}"`, 'success');
+    this.runPipeline(item); return item;
+  }
+  async runPipeline(item) {
+    this.isRunning = true; const startTime = Date.now();
+    try {
+      await this.agents.planner.process(item); this.updateUI(); await this.delay(300);
+      await this.agents.writer.process(item); this.updateUI(); await this.delay(300);
+      await this.agents.seo.process(item); this.updateUI(); await this.delay(300);
+      await this.agents.reviewer.process(item); this.updateUI(); await this.delay(300);
+      if (item.stage === 'publishing') {
+        await this.agents.publisher.process(item); this.updateUI(); await this.delay(300);
+        await this.agents.analytics.process(item); this.updateUI();
+        const elapsed = ((Date.now()-startTime)/1000).toFixed(1);
+        this.stats.produced++; this.stats.passed++; this.stats.totalReviewed++;
+        this.stats.totalTime += parseFloat(elapsed); this.stats.totalCollabs += 6;
+        showToast(`"${item.topic}" 已完成全流程 (${elapsed}s)`, 'success');
+      } else {
+        this.stats.totalReviewed++;
+        showToast(`"${item.topic}" 审核未通过, 需修改`, 'warning');
+      }
+    } catch(e) { console.error(e); showToast(`工作流出错: ${e.message}`, 'error'); }
+    this.isRunning = false; this.updateUI();
+  }
+  delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+  getAgentList() { return Object.values(this.agents); }
+  getContentList() { return Array.from(this.contentItems.values()).reverse(); }
+}
+const orch = new Orchestrator();
+let selectedContentId = null;
+let activeStageFilter = 'all';
+function renderAgents() {
+  const row = document.getElementById('agentsRow');
+  const agents = orch.getAgentList();
+  row.innerHTML = agents.map(a => `
+    <div class="agent-card ${a.status==='working'||a.status==='reviewing'?'active':''}"
+         style="--agent-color:${a.color};--agent-bg:${a.color}22" onclick="selectAgent('${a.name}')">
+      <div class="agent-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="agent-icon" style="background:${a.color}18">${a.icon}</div>
+          <div><div class="agent-name">${a.name}</div>
+          <div style="font-size:.65rem;color:var(--text-muted);font-family:var(--font-mono)">${a.role}</div></div>
+        </div>
+        <span class="agent-status-badge badge-${a.status==='reviewing'?'reviewing':a.status}">${a.status}</span>
+      </div>
+      <div class="agent-metrics">
+        <div class="agent-metric">完成 <span>${a.tasksCompleted}</span></div>
+        <div class="agent-metric">发送 <span>${a.messagesSent}</span></div>
+      </div>
+      <div class="agent-bar"><div class="agent-bar-fill" style="width:${a.progress}%;background:${a.color}"></div></div>
+    </div>`).join('');
+}
+function renderStages() {
+  const container = document.getElementById('pipelineStages');
+  const items = orch.getContentList(); const counts = { all: items.length };
+  STAGES.forEach(s => counts[s] = items.filter(i => i.stage === s).length);
+  container.innerHTML = `<div class="stage-tab ${activeStageFilter==='all'?'active':''}" onclick="filterStage('all')"><span class="stage-count">${counts.all}</span>全部</div>` +
+    STAGES.map(s => `<div class="stage-tab ${activeStageFilter===s?'active':''}" onclick="filterStage('${s}')"><span class="stage-count">${counts[s]||0}</span>${STAGE_LABELS[s]}</div>`).join('');
+  document.getElementById('pipelineCount').textContent = `${items.length} items`;
+}
+function renderContentList() {
+  const container = document.getElementById('contentList');
+  let items = orch.getContentList();
+  if (activeStageFilter !== 'all') items = items.filter(i => i.stage === activeStageFilter);
+  container.innerHTML = items.map(item => {
+    const color = STAGE_COLORS[item.stage];
+    return `<div class="content-item ${selectedContentId===item.id?'selected':''}" style="border-left-color:${selectedContentId===item.id?color:'transparent'}" onclick="selectContent('${item.id}')">
+      <div class="content-item-title">${item.topic}</div>
+      <div class="content-item-meta">
+        <span class="content-item-tag" style="background:${color}22;color:${color}">${STAGE_LABELS[item.stage]}</span>
+        <span>${TYPE_LABELS[item.type]}</span><span>${PLATFORM_LABELS[item.platform]}</span><span>${formatTime(item.createdAt)}</span>
+      </div></div>`;
+  }).join('') || '<div style="text-align:center;color:var(--text-muted);padding:20px;font-family:var(--font-mono);font-size:.78rem">暂无内容</div>';
+}
+function renderDetail() {
+  const empty = document.getElementById('detailEmpty');
+  const content = document.getElementById('detailContent');
+  if (!selectedContentId) { empty.style.display='flex'; content.style.display='none'; return; }
+  const item = orch.contentItems.get(selectedContentId);
+  if (!item) { empty.style.display='flex'; content.style.display='none'; return; }
+  empty.style.display='none'; content.style.display='block';
+  const stageColor = STAGE_COLORS[item.stage];
+  const timelineHtml = item.timeline.map((t,i) => {
+    const isLast = i===item.timeline.length-1;
+    const cls = isLast&&item.stage!=='published'?'active':(i<item.timeline.length-1||item.stage==='published'?'done':'pending');
+    return `<div class="timeline-item ${cls}"><div class="timeline-dot"></div>${!isLast?'<div class="timeline-line"></div>':''}<div class="timeline-info"><div class="timeline-label">${t.agent} — ${t.stage==='created'?'创建':STAGE_LABELS[t.stage]||t.stage}</div><div class="timeline-time">${formatTime(t.time)}</div></div></div>`;
+  }).join('');
+  const seoHtml = item.metadata.seo ? `<div class="detail-section"><div class="detail-section-title">SEO 分析</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><div style="padding:8px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:.72rem"><div style="color:var(--text-muted)">标题评分</div><div style="font-size:1.1rem;font-weight:600;color:var(--violet)">${item.metadata.seo.titleScore}/100</div></div><div style="padding:8px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:.72rem"><div style="color:var(--text-muted)">关键词密度</div><div style="font-size:1.1rem;font-weight:600;color:var(--accent)">${item.metadata.seo.keywordDensity}</div></div><div style="padding:8px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:.72rem"><div style="color:var(--text-muted)">可读性</div><div style="font-size:1.1rem;font-weight:600;color:var(--cyan)">${item.metadata.seo.readabilityScore}/100</div></div><div style="padding:8px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:.72rem"><div style="color:var(--text-muted)">内链数</div><div style="font-size:1.1rem;font-weight:600;color:var(--blue)">${item.metadata.seo.internalLinks}</div></div></div></div>` : '';
+  const reviewHtml = item.reviewScore ? `<div class="detail-section"><div class="detail-section-title">审核评分: ${item.reviewScore}/100</div>${item.reviewComments.length?`<div style="font-size:.78rem;color:var(--text-secondary);margin-top:4px">${item.reviewComments.map(c=>`<div style="margin:2px 0">• ${c}</div>`).join('')}</div>`:'<div style="font-size:.78rem;color:var(--cyan)">无修改意见</div>'}</div>` : '';
+  const analyticsHtml = item.metadata.analytics ? `<div class="detail-section"><div class="detail-section-title">表现数据</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><div style="padding:8px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:.72rem"><div style="color:var(--text-muted)">曝光</div><div style="font-size:1rem;font-weight:600">${item.metadata.analytics.impressions.toLocaleString()}</div></div><div style="padding:8px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:.72rem"><div style="color:var(--text-muted)">点击</div><div style="font-size:1rem;font-weight:600">${item.metadata.analytics.clicks.toLocaleString()}</div></div><div style="padding:8px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:.72rem"><div style="color:var(--text-muted)">分享</div><div style="font-size:1rem;font-weight:600">${item.metadata.analytics.shares}</div></div><div style="padding:8px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:.72rem"><div style="color:var(--text-muted)">平均阅读</div><div style="font-size:1rem;font-weight:600">${item.metadata.analytics.avgReadTime}</div></div></div></div>` : '';
+  content.innerHTML = `<div class="detail-header"><div class="detail-title">${item.topic}</div><div class="detail-badge" style="background:${stageColor}22;color:${stageColor};border:1px solid ${stageColor}44">${STAGE_LABELS[item.stage]}</div><div style="font-family:var(--font-mono);font-size:.7rem;color:var(--text-muted);margin-top:6px">ID: ${item.id} · ${TYPE_LABELS[item.type]} · ${PLATFORM_LABELS[item.platform]}${item.metadata.wordCount?` · ${item.metadata.wordCount}字`:''}</div></div>${item.content?`<div class="detail-section"><div class="detail-section-title">内容预览</div><div class="detail-body">${item.content.replace(/\n/g,'<br>').replace(/## (.+)/g,'<strong>$1</strong>').replace(/> (.+)/g,'<em style="color:var(--text-muted);border-left:2px solid var(--accent);padding-left:8px">$1</em>')}</div></div>`:''}${seoHtml}${reviewHtml}${analyticsHtml}<div class="detail-section"><div class="detail-section-title">处理时间线</div><div class="detail-timeline">${timelineHtml}</div></div>`;
+}
+const logEntries = [];
+function addLogEntry(agent, message, time) {
+  logEntries.unshift({ agent, message, time });
+  if (logEntries.length > 200) logEntries.pop(); renderLog();
+}
+function renderLog() {
+  const container = document.getElementById('logList');
+  const agentColors = { Planner:'#3b82f6', Writer:'#f0a500', SEO:'#8b5cf6', Reviewer:'#ff4757', Publisher:'#00d4aa', Analytics:'#06b6d4', System:'var(--text-muted)' };
+  container.innerHTML = logEntries.slice(0,80).map(e => `<div class="log-entry"><span class="log-time">${formatTimeShort(e.time)}</span><span class="log-agent" style="color:${agentColors[e.agent]||'var(--text)'}">${e.agent}</span><span class="log-msg">${e.message}</span></div>`).join('');
+  document.getElementById('logCount').textContent = `${logEntries.length} messages`;
+}
+function renderStats() {
+  document.getElementById('statProduced').textContent = orch.stats.produced;
+  document.getElementById('statProducedChange').textContent = `↑ +${orch.stats.produced} vs 昨日`;
+  document.getElementById('statPassRate').textContent = orch.stats.totalReviewed>0?Math.round(orch.stats.passed/orch.stats.totalReviewed*100)+'%':'—';
+  document.getElementById('statAvgTime').textContent = orch.stats.produced>0?(orch.stats.totalTime/orch.stats.produced).toFixed(1)+'s':'—';
+  document.getElementById('statCollabs').textContent = orch.stats.totalCollabs;
+  document.getElementById('activeAgentCount').textContent = orch.getAgentList().filter(a=>a.status!=='idle').length||6;
+  document.getElementById('queueCount').textContent = orch.queue.filter(i=>i.stage!=='published').length;
+}
+function updateUI() { renderAgents(); renderStages(); renderContentList(); renderDetail(); renderStats(); }
+bus.on('log', ({ agent, message, time }) => addLogEntry(agent, message, time));
+bus.on('agent:message', ({ from, to, message }) => { orch.stats.totalCollabs++; addLogEntry(from, `→ [${to}] ${message}`, Date.now()); });
+bus.on('agent:status', () => { renderAgents(); renderStats(); });
+bus.on('agent:progress', () => { renderAgents(); });
+function selectContent(id) { selectedContentId = id; renderContentList(); renderDetail(); }
+function selectAgent(name) { showToast(`Agent: ${name} — ${orch.getAgentList().find(a=>a.name===name)?.role}`, 'info'); }
+function filterStage(stage) { activeStageFilter = stage; renderStages(); renderContentList(); }
+function showNewWorkflow() { document.getElementById('modalOverlay').classList.add('show'); }
+function closeModal() { document.getElementById('modalOverlay').classList.remove('show'); }
+function submitWorkflow() {
+  const topic = document.getElementById('inputTopic').value.trim();
+  if (!topic) { showToast('请输入内容主题', 'warning'); return; }
+  orch.startWorkflow({ topic, type: document.getElementById('inputType').value, platform: document.getElementById('inputPlatform').value, keywords: document.getElementById('inputKeywords').value.split(',').map(s=>s.trim()).filter(Boolean), notes: document.getElementById('inputNotes').value.trim() });
+  closeModal();
+  document.getElementById('inputTopic').value=''; document.getElementById('inputKeywords').value=''; document.getElementById('inputNotes').value='';
+}
+function runDemoWorkflow() {
+  const demos = [
+    { topic:'2025年AI Agent技术全景解读', type:'article', platform:'wechat', keywords:['AI Agent','多智能体','自动化'] },
+    { topic:'如何用AI提升内容运营效率10倍', type:'social', platform:'zhihu', keywords:['内容运营','AI工具','效率'] },
+    { topic:'产品设计中的数据驱动决策指南', type:'newsletter', platform:'all', keywords:['产品设计','数据驱动','方法论'] },
+    { topic:'短视频时代的企业品牌策略', type:'video_script', platform:'douyin', keywords:['短视频','品牌','抖音运营'] },
+    { topic:'大模型落地实践白皮书', type:'whitepaper', platform:'all', keywords:['大模型','LLM','企业落地'] },
+  ];
+  const demo = demos[Math.floor(Math.random()*demos.length)]; demo.notes=''; orch.startWorkflow(demo);
+}
+function formatTime(ts) { const d=new Date(ts); return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}:${d.getSeconds().toString().padStart(2,'0')}`; }
+function formatTimeShort(ts) { const d=new Date(ts); return `${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`; }
+function showToast(msg, type='info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div'); toast.className = `toast ${type}`;
+  const icons = { success:'✓', info:'ℹ', warning:'⚠', error:'✕' };
+  toast.innerHTML = `<span style="font-weight:600">${icons[type]||'ℹ'}</span> ${msg}`;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity='0'; toast.style.transform='translateX(40px)'; toast.style.transition='all .3s'; setTimeout(()=>toast.remove(),300); }, 3500);
+}
+document.getElementById('modalOverlay').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+updateUI();
+addLogEntry('System', 'Multi-Agent Content Ops 引擎已启动', Date.now());
+addLogEntry('System', '6 个 Agent 已就位, 等待工作流...', Date.now());
+setTimeout(() => { addLogEntry('System', '自动加载演示工作流...', Date.now()); runDemoWorkflow(); }, 1200);
+</script>
+</body>
+</html>
